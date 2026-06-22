@@ -1,0 +1,11 @@
+sgx-anomaly-research/data/*
+!sgx-anomaly-research/data/.gitkeep
+
+backtester/data/cache/*
+!backtester/data/cache/.gitkeep
+
+backtester/output/
+__pycache__/
+*.pyc
+.pytest_cache/
+
