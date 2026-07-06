@@ -8,6 +8,7 @@ import deadlinesRouter from "./routes/deadlines.js";
 import tripsRouter from "./routes/trips.js";
 import trainingRouter from "./routes/training.js";
 import settingsRouter from "./routes/settings.js";
+import stravaRouter from "./routes/strava.js";
 
 const app = express();
 app.use(express.json());
@@ -21,6 +22,7 @@ app.use("/api/deadlines", deadlinesRouter);
 app.use("/api/trip", tripsRouter);
 app.use("/api/training", trainingRouter);
 app.use("/api/settings", settingsRouter);
+app.use("/api/strava", stravaRouter);
 
 // 404 for unknown /api routes
 app.use("/api", (req, res) => {
