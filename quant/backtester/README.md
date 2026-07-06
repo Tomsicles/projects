@@ -2,7 +2,7 @@
 
 Backtests trading strategies across a multi-stock SGX universe. First of four
 planned pieces in the broader project — see `CONTEXT.md` for the why, and
-`docs/superpowers/specs/2026-06-22-sgx-backtester-core-design.md` (repo root)
+`../docs/superpowers/specs/2026-06-22-sgx-backtester-core-design.md` (under `quant/`)
 for the full design.
 
 ## Install

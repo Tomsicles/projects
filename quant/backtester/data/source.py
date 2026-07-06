@@ -2,7 +2,7 @@
 
 Engine and strategies only ever talk to this interface, never to a concrete
 data provider. That keeps the moomoo OpenAPI source (planned, not yet built —
-see docs/superpowers/specs/2026-06-22-sgx-backtester-core-design.md) a drop-in
+see ../docs/superpowers/specs/2026-06-22-sgx-backtester-core-design.md) a drop-in
 replacement for the yfinance source used today.
 """
 

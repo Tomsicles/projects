@@ -1,7 +1,7 @@
 # CONTEXT.md
 
 Background and rationale for the `backtester/` subproject. See
-`docs/superpowers/specs/2026-06-22-sgx-backtester-core-design.md` for the full
+`../docs/superpowers/specs/2026-06-22-sgx-backtester-core-design.md` for the full
 technical design — this file covers the "why," not the "how."
 
 ## Why this exists
