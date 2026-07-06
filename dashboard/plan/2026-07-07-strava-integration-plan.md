@@ -37,7 +37,7 @@
 **Interfaces:**
 - Produces: `strava_tokens` table (columns: `id` fixed at 1, `access_token`, `refresh_token`, `expires_at` (unix seconds), `connected_at` (ms epoch), `last_synced_at` (ms epoch, nullable)); `training_entries.strava_activity_id` (nullable TEXT) with a partial unique index `idx_training_strava_id`.
 
-- [ ] **Step 1: Add the `strava_tokens` table to the schema block**
+- [x] **Step 1: Add the `strava_tokens` table to the schema block**
 
 In `db.js`, inside the existing `db.exec(\`...\`)` template literal (after the `training_entries` table, before `settings`), add:
 
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS strava_tokens (
 
 `id` is pinned to `1` (single-row table, single-user app — same pattern as `settings` being a key/value table, just simpler since there's only ever one Strava connection).
 
-- [ ] **Step 2: Add the idempotent column migration for `training_entries`**
+- [x] **Step 2: Add the idempotent column migration for `training_entries`**
 
 After the `seedIfEmpty();` call at the bottom of `db.js`, add:
 
@@ -75,7 +75,7 @@ db.exec(`
 
 The partial index (`WHERE strava_activity_id IS NOT NULL`) means manual entries — which all have `strava_activity_id = NULL` — never collide with each other; only two rows both carrying the *same* real Strava activity id would conflict, which is exactly the dedup behavior Task 3 relies on.
 
-- [ ] **Step 3: Verify the migration**
+- [x] **Step 3: Verify the migration**
 
 Delete the dev db so it rebuilds from scratch, then start the backend and inspect the schema:
 
@@ -95,7 +95,7 @@ console.log(db.prepare(\"SELECT name FROM sqlite_master WHERE name = 'idx_traini
 
 Expected: `strava_tokens` columns print with `id, access_token, refresh_token, expires_at, connected_at, last_synced_at`; the `strava_activity_id` column object prints (not `undefined`); the index name prints. Stop the background server afterward (`kill %1` or find the PID on port 3001).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add dashboard/backend/src/db.js
@@ -113,7 +113,7 @@ git commit -m "feat(dashboard): add strava_tokens table and training_entries ded
 - Consumes: `process.env.STRAVA_CLIENT_ID`, `process.env.STRAVA_CLIENT_SECRET` (set in Task 3's `.env`).
 - Produces: `buildAuthorizeUrl(redirectUri: string): string`; `exchangeCodeForToken(code: string): Promise<{accessToken, refreshToken, expiresAt}>`; `refreshAccessToken(refreshToken: string): Promise<{accessToken, refreshToken, expiresAt}>`; `fetchActivitiesSince(accessToken: string, afterEpochSeconds: number): Promise<Array<StravaActivity>>` where each `StravaActivity` has at least `{id, type, start_date_local, moving_time, distance, name}` (Strava API's native shape — this module does no field renaming, that's Task 3's job).
 
-- [ ] **Step 1: Write the module**
+- [x] **Step 1: Write the module**
 
 ```javascript
 // dashboard/backend/src/stravaClient.js
@@ -189,7 +189,7 @@ export async function fetchActivitiesSince(accessToken, afterEpochSeconds) {
 }
 ```
 
-- [ ] **Step 2: Verify without hitting the network**
+- [x] **Step 2: Verify without hitting the network**
 
 `buildAuthorizeUrl` is pure and safe to check standalone; it's the only function that doesn't require live credentials or network access:
 
@@ -208,7 +208,7 @@ import('./src/stravaClient.js').then(m => {
 
 Expected: prints the built URL, then `OK`. (`exchangeCodeForToken`, `refreshAccessToken`, and `fetchActivitiesSince` all call the real Strava API and can only be verified end-to-end in Task 3/4 once real credentials and a connected account exist.)
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add dashboard/backend/src/stravaClient.js
@@ -230,7 +230,7 @@ git commit -m "feat(dashboard): add Strava OAuth + activities HTTP client helper
 - Consumes: `db` from `../db.js` (Task 1's `strava_tokens` table and `training_entries.strava_activity_id`); `buildAuthorizeUrl`, `exchangeCodeForToken`, `refreshAccessToken`, `fetchActivitiesSince` from `../stravaClient.js` (Task 2).
 - Produces: `GET /api/strava/connect`, `GET /api/strava/callback`, `GET /api/strava/status` → `{connected: boolean, lastSyncedAt: number|null}`, `POST /api/strava/sync` → `{synced: number, lastSyncedAt: number}` or `{error: string}`.
 
-- [ ] **Step 1: Write the route module**
+- [x] **Step 1: Write the route module**
 
 ```javascript
 // dashboard/backend/src/routes/strava.js
@@ -376,7 +376,7 @@ router.post("/sync", async (req, res) => {
 export default router;
 ```
 
-- [ ] **Step 2: Create the env template and update `.gitignore`**
+- [x] **Step 2: Create the env template and update `.gitignore`**
 
 ```bash
 # dashboard/backend/.env.example
@@ -394,7 +394,7 @@ node_modules/
 .env
 ```
 
-- [ ] **Step 3: Load env vars in the dev/start scripts**
+- [x] **Step 3: Load env vars in the dev/start scripts**
 
 In `dashboard/backend/package.json`, change the `scripts` block to:
 
@@ -407,7 +407,7 @@ In `dashboard/backend/package.json`, change the `scripts` block to:
 
 Use `--env-file-if-exists` (Node 20.12+/22+), not `--env-file` — the latter throws `ENOENT` and crashes the server at boot if `.env` doesn't exist yet, which would break `npm run dev` for anyone who hasn't done the Prerequisites step. `--env-file-if-exists` loads it if present and is a no-op otherwise, so the rest of the dashboard keeps working before Strava is ever connected.
 
-- [ ] **Step 4: Mount the router in `server.js`**
+- [x] **Step 4: Mount the router in `server.js`**
 
 Add the import alongside the other route imports:
 
@@ -421,7 +421,7 @@ Add the mount alongside the other `app.use("/api/...")` lines (after `settingsRo
 app.use("/api/strava", stravaRouter);
 ```
 
-- [ ] **Step 5: Verify what's checkable without the manual OAuth click**
+- [x] **Step 5: Verify what's checkable without the manual OAuth click**
 
 You (the human) must have already created `dashboard/backend/.env` with real credentials per this plan's Prerequisites section — confirm it exists first: `ls dashboard/backend/.env`. (`--env-file-if-exists` means the server still boots without it, but `/connect` would redirect with an empty `client_id` and fail at Strava's end.)
 
@@ -449,7 +449,7 @@ curl -s http://localhost:3001/api/strava/status
 
 now returns `{"connected":true,"lastSyncedAt":null}`. This human step is required before Task 4's frontend wiring can be exercised end-to-end.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add dashboard/backend/src/routes/strava.js dashboard/backend/.env.example \
@@ -471,7 +471,7 @@ git commit -m "feat(dashboard): add Strava OAuth connect/callback/status/sync ro
 - Consumes: `GET /api/strava/status`, `POST /api/strava/sync`, `GET /api/training` (existing, for re-fetching after a sync), all from Task 3.
 - Produces: `api.getStravaStatus()`, `api.syncStrava()`, `api.getTrainingEntries()` (existing) wired into new component state: `stravaConnected`, `stravaLastSyncedAt`, `stravaSyncing`, `stravaSyncError`.
 
-- [ ] **Step 1: Add API functions**
+- [x] **Step 1: Add API functions**
 
 In `dashboard/frontend/src/api.js`, after the `--- settings ---` section at the bottom, add:
 
@@ -483,7 +483,7 @@ export const syncStrava = () => post("/strava/sync", {});
 
 (Connecting is a full browser redirect, not a fetch call, so there's no `connectStrava` API function — the component navigates directly.)
 
-- [ ] **Step 2: Add the `RefreshCw` icon import**
+- [x] **Step 2: Add the `RefreshCw` icon import**
 
 In `PlannerDashboard.jsx`, add `RefreshCw` to the existing `lucide-react` import list (it already imports `Dumbbell` for the Training Tracker header — `RefreshCw` goes right after it):
 
@@ -492,7 +492,7 @@ In `PlannerDashboard.jsx`, add `RefreshCw` to the existing `lucide-react` import
   RefreshCw,
 ```
 
-- [ ] **Step 3: Add Strava state**
+- [x] **Step 3: Add Strava state**
 
 In the "Training tracker state" section (near `trainingEntries`/`trainingLoaded`/`trainingError`), add:
 
@@ -503,7 +503,7 @@ In the "Training tracker state" section (near `trainingEntries`/`trainingLoaded`
   const [stravaSyncError, setStravaSyncError] = useState(null);
 ```
 
-- [ ] **Step 4: Load Strava status and auto-sync on mount**
+- [x] **Step 4: Load Strava status and auto-sync on mount**
 
 Add a new effect alongside the other domain-load effects (after the "Load training log" effect):
 
@@ -545,7 +545,7 @@ Add a new effect alongside the other domain-load effects (after the "Load traini
   }, []);
 ```
 
-- [ ] **Step 5: Add the manual sync handler and connect handler**
+- [x] **Step 5: Add the manual sync handler and connect handler**
 
 Add near the other training-tracker functions (`addTrainingEntry`/`deleteTrainingEntry`):
 
@@ -590,7 +590,7 @@ Add near the other training-tracker functions (`addTrainingEntry`/`deleteTrainin
   }
 ```
 
-- [ ] **Step 6: Add the header UI**
+- [x] **Step 6: Add the header UI**
 
 In the Training Tracker header (the `<div>` containing the `TRAINING TRACKER` label and the weekly-stats `<span>`, around where `weeklyTrainingStats` is rendered), add a second row below the existing header row:
 
@@ -639,7 +639,7 @@ In the Training Tracker header (the `<div>` containing the `TRAINING TRACKER` la
 
 Place this new block immediately after the existing header `<div>` (the one with `TRAINING TRACKER` + weekly stats) and before the existing `{trainingError && (...)}` block, so the layout reads: title row → Strava row → error banners → add-entry form → entries list.
 
-- [ ] **Step 7: Verify in the browser**
+- [x] **Step 7: Verify in the browser**
 
 This step assumes Task 3's Prerequisite (you've completed the manual OAuth click and `/api/strava/status` returns `connected:true`) is done.
 
@@ -653,7 +653,7 @@ Open `http://localhost:5173`. Confirm:
 - Click "Sync Strava" manually — button shows "Syncing…" then returns to "Sync Strava", label updates.
 - Stop the backend (find the PID on port 3001 and kill it), reload the page, click "Sync Strava" — confirm the error banner "Strava sync failed — try again." appears and the page doesn't crash. Restart the backend afterward.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add dashboard/frontend/src/api.js dashboard/frontend/src/PlannerDashboard.jsx
