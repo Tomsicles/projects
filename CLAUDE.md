@@ -19,7 +19,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     "opposite stock" finder. All three are designed to plug into the backtester
     core as additional strategies/signals once it exists.
 
-- **`dashboard/`** — personal dashboard project (incoming, not yet populated).
+- **`dashboard/`** — personal productivity dashboard. Currently a single-file
+  React component (`planner_dashboard.jsx`) built as a Claude.ai artifact;
+  goal ! turn into standalone app w/ real backend, db, & scheduled automation
+  (flight price scan, Garmin/Strava sync). Spec: `dashboard/PROJECT_SPEC.md`.
+  See `dashboard/CLAUDE.md` for subsystem-specific guidance.
 
 ## Workflow
 
