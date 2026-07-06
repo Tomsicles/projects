@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   X,
@@ -12,6 +12,7 @@ import {
   CalendarDays,
   ListChecks,
   Dumbbell,
+  RefreshCw,
   Plane,
   ExternalLink,
   Link2,
@@ -136,10 +137,6 @@ function nextWeekday(dateKey) {
   return fmtKey(d);
 }
 
-function uid() {
-  return Math.random().toString(36).slice(2, 10);
-}
-
 function urgencyStyle(carriedDays) {
   if (carriedDays <= 0) return null;
   if (carriedDays === 1) {
@@ -186,6 +183,12 @@ export default function PlannerDashboard() {
   const [trainingEntries, setTrainingEntries] = useState([]);
   const [trainingLoaded, setTrainingLoaded] = useState(false);
   const [trainingError, setTrainingError] = useState(null);
+
+  // --- Strava ---
+  const [stravaConnected, setStravaConnected] = useState(false);
+  const [stravaLastSyncedAt, setStravaLastSyncedAt] = useState(null);
+  const [stravaSyncing, setStravaSyncing] = useState(false);
+  const [stravaSyncError, setStravaSyncError] = useState(null);
 
   // --- Trip scanner state ---
   const [tripDestinations, setTripDestinations] = useState([]);
@@ -242,6 +245,42 @@ export default function PlannerDashboard() {
         // no existing data — fine
       } finally {
         setTrainingLoaded(true);
+      }
+    })();
+  }, []);
+
+  // Load Strava connection status, then auto-sync in the background if connected
+  useEffect(() => {
+    (async () => {
+      try {
+        const status = await api.getStravaStatus();
+        setStravaConnected(status.connected);
+        setStravaLastSyncedAt(status.lastSyncedAt);
+        if (status.connected) {
+          try {
+            const result = await api.syncStrava();
+            setStravaLastSyncedAt(result.lastSyncedAt);
+            const entries = await api.getTrainingEntries();
+            setTrainingEntries(entries || []);
+          } catch (e) {
+            // Auto-fire-on-mount failures are silent by design (spec
+            // §Error handling) — the manual "Sync Strava" button is the
+            // user-visible fallback. Re-check status in case the backend
+            // deleted the tokens row (revoked refresh token, see routes/
+            // strava.js) — this flips the UI back to "Connect Strava"
+            // instead of leaving a dead "Sync Strava" button behind.
+            console.error("Strava auto-sync failed:", e);
+            try {
+              const recheck = await api.getStravaStatus();
+              setStravaConnected(recheck.connected);
+              setStravaLastSyncedAt(recheck.lastSyncedAt);
+            } catch (e2) {
+              // status endpoint unreachable — leave state as-is
+            }
+          }
+        }
+      } catch (e) {
+        // status endpoint unreachable — leave stravaConnected false
       }
     })();
   }, []);
@@ -431,30 +470,50 @@ export default function PlannerDashboard() {
     return own;
   }
 
-  function addTask(dayKey, category) {
+  async function addTask(dayKey, category) {
     const draftKey = `${dayKey}:${category}`;
     const text = (draftText[draftKey] || "").trim();
     if (!text) return;
-    setTasksByDay((prev) => {
-      const list = prev[dayKey] ? [...prev[dayKey]] : [];
-      list.push({ id: uid(), text, done: false, category });
-      return { ...prev, [dayKey]: list };
-    });
-    setDraftText((prev) => ({ ...prev, [draftKey]: "" }));
+    try {
+      const created = await api.createTask(dayKey, category, text);
+      setTasksByDay((prev) => {
+        const list = prev[dayKey] ? [...prev[dayKey]] : [];
+        list.push(created);
+        return { ...prev, [dayKey]: list };
+      });
+      setError(null);
+      setDraftText((prev) => ({ ...prev, [draftKey]: "" }));
+    } catch (e) {
+      setError("Couldn't save — your changes may not persist.");
+    }
   }
 
-  function toggleTask(sourceDay, id) {
-    setTasksByDay((prev) => {
-      const list = (prev[sourceDay] || []).map((t) => (t.id === id ? { ...t, done: !t.done } : t));
-      return { ...prev, [sourceDay]: list };
-    });
+  async function toggleTask(sourceDay, id) {
+    const current = (tasksByDay[sourceDay] || []).find((t) => t.id === id);
+    if (!current) return;
+    try {
+      await api.updateTaskDone(id, !current.done);
+      setTasksByDay((prev) => {
+        const list = (prev[sourceDay] || []).map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+        return { ...prev, [sourceDay]: list };
+      });
+      setError(null);
+    } catch (e) {
+      setError("Couldn't save — your changes may not persist.");
+    }
   }
 
-  function deleteTask(sourceDay, id) {
-    setTasksByDay((prev) => {
-      const list = (prev[sourceDay] || []).filter((t) => t.id !== id);
-      return { ...prev, [sourceDay]: list };
-    });
+  async function deleteTask(sourceDay, id) {
+    try {
+      await api.deleteTask(id);
+      setTasksByDay((prev) => {
+        const list = (prev[sourceDay] || []).filter((t) => t.id !== id);
+        return { ...prev, [sourceDay]: list };
+      });
+      setError(null);
+    } catch (e) {
+      setError("Couldn't save — your changes may not persist.");
+    }
   }
 
   function shiftWeek(delta) {
@@ -465,41 +524,73 @@ export default function PlannerDashboard() {
     });
   }
 
-  function addTrainingEntry() {
+  async function addTrainingEntry() {
     const duration = parseFloat(trainingDraft.duration);
     if (!duration || duration <= 0) return;
-    setTrainingEntries((prev) => [
-      {
-        id: uid(),
+    try {
+      const created = await api.createTrainingEntry({
         date: trainingDraft.date || todayKey,
         type: trainingDraft.type,
         duration,
         distance: trainingDraft.distance ? parseFloat(trainingDraft.distance) : null,
         notes: trainingDraft.notes.trim(),
-      },
-      ...prev,
-    ]);
-    setTrainingDraft((prev) => ({ ...prev, duration: "", distance: "", notes: "" }));
-  }
-
-  function deleteTrainingEntry(id) {
-    setTrainingEntries((prev) => prev.filter((e) => e.id !== id));
-  }
-
-  const persistTripData = useCallback(async (destinations, logs) => {
-    try {
-      const r1 = await window.storage.set("trip-destinations", JSON.stringify(destinations));
-      const r2 = await window.storage.set("trip-price-logs", JSON.stringify(logs));
-      if (!r1 || !r2) setTripError("Couldn't save — your changes may not persist.");
-      else setTripError(null);
+      });
+      setTrainingEntries((prev) => [created, ...prev]);
+      setTrainingError(null);
+      setTrainingDraft((prev) => ({ ...prev, duration: "", distance: "", notes: "" }));
     } catch (e) {
-      setTripError("Couldn't save — your changes may not persist.");
+      setTrainingError("Couldn't save — your changes may not persist.");
     }
-  }, []);
+  }
 
-  useEffect(() => {
-    if (tripDataLoaded) persistTripData(tripDestinations, tripPriceLogs);
-  }, [tripDestinations, tripPriceLogs, tripDataLoaded, persistTripData]);
+  async function deleteTrainingEntry(id) {
+    try {
+      await api.deleteTrainingEntry(id);
+      setTrainingEntries((prev) => prev.filter((e) => e.id !== id));
+      setTrainingError(null);
+    } catch (e) {
+      setTrainingError("Couldn't save — your changes may not persist.");
+    }
+  }
+
+  function connectStrava() {
+    window.location.href = "/api/strava/connect";
+  }
+
+  async function syncStravaNow() {
+    setStravaSyncing(true);
+    try {
+      const result = await api.syncStrava();
+      setStravaLastSyncedAt(result.lastSyncedAt);
+      const entries = await api.getTrainingEntries();
+      setTrainingEntries(entries || []);
+      setStravaSyncError(null);
+    } catch (e) {
+      setStravaSyncError("Strava sync failed — try again.");
+      // Same re-check as the auto-sync path: a revoked refresh token
+      // means the backend already deleted strava_tokens, so flip the UI
+      // back to "Connect Strava" instead of showing a dead sync button.
+      try {
+        const recheck = await api.getStravaStatus();
+        setStravaConnected(recheck.connected);
+        setStravaLastSyncedAt(recheck.lastSyncedAt);
+      } catch (e2) {
+        // status endpoint unreachable — leave state as-is
+      }
+    } finally {
+      setStravaSyncing(false);
+    }
+  }
+
+  function formatRelativeSync(ms) {
+    if (!ms) return "Never";
+    const diffMin = Math.round((Date.now() - ms) / 60000);
+    if (diffMin < 1) return "Just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return new Date(ms).toLocaleDateString();
+  }
 
   function computeTripSpan(startKey, endKey) {
     if (!startKey || !endKey) return null;
@@ -519,26 +610,37 @@ export default function PlannerDashboard() {
     return { days, hasWeekend };
   }
 
-  function addDestination() {
+  async function addDestination() {
     const name = destDraft.name.trim();
     if (!name) return;
-    setTripDestinations((prev) => [...prev, { id: uid(), name, country: destDraft.country.trim() }]);
-    setDestDraft({ name: "", country: "" });
-    setShowAddDestination(false);
+    try {
+      const created = await api.createTripDestination(name, destDraft.country.trim());
+      setTripDestinations((prev) => [...prev, created]);
+      setTripError(null);
+      setDestDraft({ name: "", country: "" });
+      setShowAddDestination(false);
+    } catch (e) {
+      setTripError("Couldn't save — your changes may not persist.");
+    }
   }
 
-  function deleteDestination(id) {
-    setTripDestinations((prev) => prev.filter((d) => d.id !== id));
-    setTripPriceLogs((prev) => prev.filter((l) => l.destId !== id));
-    setSelectedDestId(null);
+  async function deleteDestination(id) {
+    try {
+      await api.deleteTripDestination(id);
+      setTripDestinations((prev) => prev.filter((d) => d.id !== id));
+      setTripPriceLogs((prev) => prev.filter((l) => l.destId !== id));
+      setSelectedDestId(null);
+      setTripError(null);
+    } catch (e) {
+      setTripError("Couldn't save — your changes may not persist.");
+    }
   }
 
-  function addPriceLog(destId) {
+  async function addPriceLog(destId) {
     const price = parseFloat(logDraft.price);
     if (!price || price <= 0 || !logDraft.tripStart || !logDraft.tripEnd) return;
-    setTripPriceLogs((prev) => [
-      {
-        id: uid(),
+    try {
+      const created = await api.createTripPriceLog({
         destId,
         price,
         dateChecked: logDraft.dateChecked || todayKey,
@@ -546,14 +648,23 @@ export default function PlannerDashboard() {
         tripEnd: logDraft.tripEnd,
         airlines: logDraft.airlines.trim(),
         notes: logDraft.notes.trim(),
-      },
-      ...prev,
-    ]);
-    setLogDraft({ price: "", dateChecked: "", tripStart: "", tripEnd: "", airlines: "", notes: "" });
+      });
+      setTripPriceLogs((prev) => [created, ...prev]);
+      setTripError(null);
+      setLogDraft({ price: "", dateChecked: "", tripStart: "", tripEnd: "", airlines: "", notes: "" });
+    } catch (e) {
+      setTripError("Couldn't save — your changes may not persist.");
+    }
   }
 
-  function deletePriceLog(id) {
-    setTripPriceLogs((prev) => prev.filter((l) => l.id !== id));
+  async function deletePriceLog(id) {
+    try {
+      await api.deleteTripPriceLog(id);
+      setTripPriceLogs((prev) => prev.filter((l) => l.id !== id));
+      setTripError(null);
+    } catch (e) {
+      setTripError("Couldn't save — your changes may not persist.");
+    }
   }
 
   const destinationsSorted = useMemo(() => {
@@ -573,52 +684,52 @@ export default function PlannerDashboard() {
   }, [tripDestinations, tripPriceLogs]);
 
   // Dark mode persistence
-  const persistDarkMode = useCallback(async (val) => {
+  async function toggleDarkMode() {
+    const next = !darkMode;
+    setDarkMode(next);
     try {
-      await window.storage.set("dashboard-dark-mode", JSON.stringify(val));
+      await api.setDarkMode(next);
     } catch (e) {
       // non-critical — theme just won't persist
     }
-  }, []);
-
-  useEffect(() => {
-    if (darkModeLoaded) persistDarkMode(darkMode);
-  }, [darkMode, darkModeLoaded, persistDarkMode]);
+  }
 
   const theme = darkMode ? DARK_THEME : LIGHT_THEME;
 
-  // Masters deadlines persistence + CRUD
-  const persistDeadlines = useCallback(async (next) => {
+  async function addDeadline() {
+    const title = deadlineDraft.title.trim();
+    if (!title || !deadlineDraft.dueDate) return;
     try {
-      const result = await window.storage.set("masters-deadlines", JSON.stringify(next));
-      if (!result) setDeadlinesError("Couldn't save — your changes may not persist.");
-      else setDeadlinesError(null);
+      const created = await api.createDeadline(title, deadlineDraft.module.trim(), deadlineDraft.dueDate);
+      setDeadlines((prev) => [...prev, created]);
+      setDeadlinesError(null);
+      setDeadlineDraft({ title: "", module: "", dueDate: "" });
+      setShowAddDeadline(false);
     } catch (e) {
       setDeadlinesError("Couldn't save — your changes may not persist.");
     }
-  }, []);
-
-  useEffect(() => {
-    if (deadlinesLoaded) persistDeadlines(deadlines);
-  }, [deadlines, deadlinesLoaded, persistDeadlines]);
-
-  function addDeadline() {
-    const title = deadlineDraft.title.trim();
-    if (!title || !deadlineDraft.dueDate) return;
-    setDeadlines((prev) => [
-      ...prev,
-      { id: uid(), title, module: deadlineDraft.module.trim(), dueDate: deadlineDraft.dueDate, done: false },
-    ]);
-    setDeadlineDraft({ title: "", module: "", dueDate: "" });
-    setShowAddDeadline(false);
   }
 
-  function toggleDeadlineDone(id) {
-    setDeadlines((prev) => prev.map((d) => (d.id === id ? { ...d, done: !d.done } : d)));
+  async function toggleDeadlineDone(id) {
+    const current = deadlines.find((d) => d.id === id);
+    if (!current) return;
+    try {
+      await api.updateDeadlineDone(id, !current.done);
+      setDeadlines((prev) => prev.map((d) => (d.id === id ? { ...d, done: !d.done } : d)));
+      setDeadlinesError(null);
+    } catch (e) {
+      setDeadlinesError("Couldn't save — your changes may not persist.");
+    }
   }
 
-  function deleteDeadline(id) {
-    setDeadlines((prev) => prev.filter((d) => d.id !== id));
+  async function deleteDeadline(id) {
+    try {
+      await api.deleteDeadline(id);
+      setDeadlines((prev) => prev.filter((d) => d.id !== id));
+      setDeadlinesError(null);
+    } catch (e) {
+      setDeadlinesError("Couldn't save — your changes may not persist.");
+    }
   }
 
   const deadlinesSorted = useMemo(() => {
@@ -910,7 +1021,7 @@ export default function PlannerDashboard() {
         {/* ===================== QUICK LINKS ===================== */}
         <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
           <button
-            onClick={() => setDarkMode((v) => !v)}
+            onClick={toggleDarkMode}
             className="dp-theme-toggle"
             aria-label="Toggle dark mode"
             style={{
@@ -1521,6 +1632,47 @@ export default function PlannerDashboard() {
                 {weeklyTrainingStats.sessions} sessions · {weeklyTrainingStats.distance.toFixed(1)} km · {weeklyTrainingStats.minutes}m this week
               </span>
             </div>
+
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              {stravaConnected ? (
+                <>
+                  <span className="dp-mono" style={{ fontSize: 10.5, opacity: 0.75 }}>
+                    Strava: {formatRelativeSync(stravaLastSyncedAt)}
+                  </span>
+                  <button
+                    onClick={syncStravaNow}
+                    disabled={stravaSyncing}
+                    className="dp-mono"
+                    style={{
+                      display: "flex", alignItems: "center", gap: 4,
+                      border: "1.5px solid #FC4C02", background: stravaSyncing ? "transparent" : "#FC4C02",
+                      color: stravaSyncing ? "#FC4C02" : "#FFF6EE", cursor: stravaSyncing ? "default" : "pointer",
+                      padding: "4px 10px", fontSize: 11, fontWeight: 700, borderRadius: 2,
+                    }}
+                  >
+                    <RefreshCw size={12} /> {stravaSyncing ? "Syncing…" : "Sync Strava"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={connectStrava}
+                  className="dp-mono"
+                  style={{
+                    display: "flex", alignItems: "center", gap: 4,
+                    border: "1.5px solid #FC4C02", background: "#FC4C02", color: "#FFF6EE",
+                    cursor: "pointer", padding: "4px 10px", fontSize: 11, fontWeight: 700, borderRadius: 2,
+                  }}
+                >
+                  <RefreshCw size={12} /> Connect Strava
+                </button>
+              )}
+            </div>
+
+            {stravaSyncError && (
+              <div className="dp-mono" style={{ background: "#4A241A", color: "#F4E3DC", padding: "6px 10px", fontSize: 11 }}>
+                {stravaSyncError}
+              </div>
+            )}
 
             {trainingError && (
               <div className="dp-mono" style={{ background: "#4A241A", color: "#F4E3DC", padding: "6px 10px", fontSize: 11 }}>

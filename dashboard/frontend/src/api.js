@@ -77,3 +77,7 @@ export const deleteTrainingEntry = (id) => del(`/training/${id}`);
 // --- settings ---
 export const getDarkMode = () => get("/settings/dark-mode");
 export const setDarkMode = (value) => put("/settings/dark-mode", { value });
+
+// --- strava ---
+export const getStravaStatus = () => get("/strava/status");
+export const syncStrava = () => post("/strava/sync", {});
