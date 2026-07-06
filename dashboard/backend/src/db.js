@@ -80,6 +80,15 @@ CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS strava_tokens (
+  id             INTEGER PRIMARY KEY CHECK (id = 1),
+  access_token   TEXT NOT NULL,
+  refresh_token  TEXT NOT NULL,
+  expires_at     INTEGER NOT NULL,
+  connected_at   INTEGER NOT NULL,
+  last_synced_at INTEGER
+);
 `);
 
 // First-boot seeding — only when the relevant table is empty.
@@ -116,3 +125,16 @@ function seedIfEmpty() {
 }
 
 seedIfEmpty();
+
+// Idempotent migration: strava_activity_id was added after training_entries
+// already existed in deployed dbs, so ALTER TABLE can't go in the CREATE TABLE
+// IF NOT EXISTS block above.
+const trainingCols = db.prepare("PRAGMA table_info(training_entries)").all();
+if (!trainingCols.some((c) => c.name === "strava_activity_id")) {
+  db.exec("ALTER TABLE training_entries ADD COLUMN strava_activity_id TEXT");
+}
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_training_strava_id
+    ON training_entries(strava_activity_id)
+    WHERE strava_activity_id IS NOT NULL;
+`);
