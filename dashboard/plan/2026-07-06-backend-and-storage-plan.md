@@ -184,36 +184,36 @@ title + dueDate required L690, label + url required L425).
 ## 4. Ordered implementation steps
 
 ### Phase A — backend scaffold
-- [ ] A1. Create `dashboard/backend/package.json` (`"type":"module"`; deps
+- [x] A1. Create `dashboard/backend/package.json` (`"type":"module"`; deps
       `express`, `better-sqlite3`; script `"dev": "node --watch src/server.js"`).
-- [ ] A2. Create `backend/.gitignore` with `data/` and `node_modules/`.
-- [ ] A3. `backend/src/seeds.js` — copy the three seed constants verbatim from
+- [x] A2. Create `backend/.gitignore` with `data/` and `node_modules/`.
+- [x] A3. `backend/src/seeds.js` — copy the three seed constants verbatim from
       `planner_dashboard.jsx` L36–68.
-- [ ] A4. `backend/src/db.js` — open `data/dashboard.db` (create `data/` if
+- [x] A4. `backend/src/db.js` — open `data/dashboard.db` (create `data/` if
       missing), run the schema from §2, run first-boot seeds when tables empty.
-- [ ] A5. `backend/src/server.js` — express, `express.json()`, mount 7 routers,
+- [x] A5. `backend/src/server.js` — express, `express.json()`, mount 7 routers,
       `/api/health`, 404 + error JSON middleware, listen on `PORT || 3001`.
-- [ ] A6. Implement `routes/` one file per domain per the table in §3.
+- [x] A6. Implement `routes/` one file per domain per the table in §3.
       Prepared statements at module top; camelCase mapping helpers per file.
-- [ ] A7. Smoke-test every endpoint with curl (create/read/toggle/delete per
+- [x] A7. Smoke-test every endpoint with curl (create/read/toggle/delete per
       domain; verify destination delete cascades logs; verify seeds appear in
       GET quick-links and trip endpoints on a fresh db).
 
 ### Phase B — frontend scaffold (still on window.storage; just make it run)
-- [ ] B1. Scaffold Vite React app in `dashboard/frontend/` (manual files, not
+- [x] B1. Scaffold Vite React app in `dashboard/frontend/` (manual files, not
       `npm create`, to control layout): `index.html`, `vite.config.js`,
       `src/main.jsx`. Deps: `react`, `react-dom`, `lucide-react`; dev: `vite`,
       `@vitejs/plugin-react`.
-- [ ] B2. Copy `planner_dashboard.jsx` -> `frontend/src/PlannerDashboard.jsx`
+- [x] B2. Copy `planner_dashboard.jsx` -> `frontend/src/PlannerDashboard.jsx`
       (leave the root copy untouched as the artifact reference).
-- [ ] B3. `vite.config.js`: proxy `/api` -> `http://localhost:3001`.
-- [ ] B4. Run `vite`; confirm UI renders. Storage loads will fail silently
+- [x] B3. `vite.config.js`: proxy `/api` -> `http://localhost:3001`.
+- [x] B4. Run `vite`; confirm UI renders. Storage loads will fail silently
       (all loads are try/catch'd) — expected at this step.
 
 ### Phase C — port persistence layer (one domain at a time; verify each before next)
-- [ ] C1. Write `frontend/src/api.js`: `fetch` wrapper (JSON, throws on !ok)
+- [x] C1. Write `frontend/src/api.js`: `fetch` wrapper (JSON, throws on !ok)
       plus one exported function per endpoint in §3.
-- [ ] C2. Port pattern, applied per domain — simplest first:
+- [x] C2. Port pattern, applied per domain — simplest first:
       1. quick links, 2. notes, 3. deadlines, 4. training, 5. trips,
       6. tasks, 7. dark mode.
       For each domain:
@@ -237,34 +237,34 @@ title + dueDate required L690, label + url required L425).
         works — ids are globally unique so PATCH by id alone is sufficient.
       - Remove the legacy `category: "work"` backfill map (L255–257); the
         column default covers it.
-- [ ] C3. Confirm NO `window.storage` references remain
+- [x] C3. Confirm NO `window.storage` references remain
       (`grep -n "window.storage" frontend/src/`).
-- [ ] C4. Untouched by design (frontend-only logic — verify no accidental
+- [x] C4. Untouched by design (frontend-only logic — verify no accidental
       edits): rollover targets + carried-task computation (L476–515),
       `nextWeekday` weekend skip (L158), `urgencyStyle` (L170), daily quote
       (L183), weekly training stats (L718), `destinationsSorted` best-price
       sort (L642), $400 `TRIP_BUDGET_CAP`, themes/dark-mode rendering.
 
 ### Phase D — dev integration
-- [ ] D1. `dashboard/package.json` with `concurrently`:
+- [x] D1. `dashboard/package.json` with `concurrently`:
       `"dev": "concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\""`
       plus an `install-all` script.
-- [ ] D2. Short `dashboard/README.md` (or a Run section in `CLAUDE.md`):
+- [x] D2. Short `dashboard/README.md` (or a Run section in `CLAUDE.md`):
       Node 20+, `npm run install-all`, `npm run dev`, frontend at :5173,
       API at :3001, db file at `backend/data/dashboard.db`.
 
 ### Phase E — end-to-end verification checklist
-- [ ] E1. Fresh db: quick links show the 6 defaults; Trip Scanner shows the
+- [x] E1. Fresh db: quick links show the 6 defaults; Trip Scanner shows the
       7 seeded destinations with seeded price history.
-- [ ] E2. Add a task, reload page -> persists. Toggle + delete -> persist.
-- [ ] E3. Backdate a task (insert with a past `day` via curl), reload ->
+- [x] E2. Add a task, reload page -> persists. Toggle + delete -> persist.
+- [x] E3. Backdate a task (insert with a past `day` via curl), reload ->
       appears carried on today (study) / next weekday (work) with urgency tag.
-- [ ] E4. Work column absent on weekend day cards (unchanged behavior).
-- [ ] E5. Delete a destination -> its price logs gone after reload (cascade).
-- [ ] E6. Add training entry without distance -> stored as null, weekly
+- [x] E4. Work column absent on weekend day cards (unchanged behavior).
+- [x] E5. Delete a destination -> its price logs gone after reload (cascade).
+- [x] E6. Add training entry without distance -> stored as null, weekly
       stats correct.
-- [ ] E7. Toggle dark mode, reload -> persists.
-- [ ] E8. Stop backend, try adding a note -> UI shows the existing
+- [x] E7. Toggle dark mode, reload -> persists.
+- [x] E8. Stop backend, try adding a note -> UI shows the existing
       "Couldn't save" error string, doesn't crash.
 
 ## 5. Explicitly out of scope (later sub-projects)

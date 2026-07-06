@@ -44,5 +44,14 @@ Dark mode.
 ## Workflow
 
 Follow root CLAUDE.md: brainstorm → design spec → implementation plan
-b4 code. No specs dir here yet — create one if this grows past MVP
-(mirror `quant/docs/superpowers/specs/` convention if useful).
+b4 code. Both design specs and implementation plans live together in
+`dashboard/plan/` (one folder, `YYYY-MM-DD-<topic>-*.md`) — unlike
+`quant/`, this project does not split specs into a separate `docs/`
+tree.
+
+## Run
+
+Node 20+. `npm run install-all` once, then `npm run dev` from `dashboard/`
+— runs backend (:3001) + frontend (:5173) together via `concurrently`.
+DB file: `backend/data/dashboard.db` (gitignored, created + seeded on
+first boot).
