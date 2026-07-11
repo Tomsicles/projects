@@ -17,13 +17,14 @@ from backtester.data.yfinance_source import YFinanceDataSource
 from backtester.engine.simulator import run_backtest
 from backtester.reporting.metrics import compute_metrics
 from backtester.reporting.report import print_summary, save_equity_curve, save_trades_csv
+from backtester.strategies.kama_momentum import KamaMomentumStrategy
 from backtester.strategies.rsi_threshold import RsiThresholdStrategy
 from backtester.strategies.sma_crossover import SmaCrossoverStrategy
 from backtester.universe import STI_WATCHLIST, is_valid_si_ticker
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 
-STRATEGY_CHOICES = {"sma": "SMA crossover", "rsi": "RSI threshold"}
+STRATEGY_CHOICES = {"sma": "SMA crossover", "rsi": "RSI threshold", "kama": "KAMA momentum"}
 INTERVAL_CHOICES = {
     "1d": "Daily (recommended, full history)",
     "1h": "1 hour (yfinance limits history to ~2 years)",
@@ -44,6 +45,12 @@ def build_strategy(name: str, **params):
             oversold=float(params.get("oversold", 30)),
             overbought=float(params.get("overbought", 70)),
         )
+    if name == "kama":
+        return KamaMomentumStrategy(
+            period=int(params.get("kama_period", 10)),
+            fast=int(params.get("kama_fast", 2)),
+            slow=int(params.get("kama_slow", 30)),
+        )
     raise ValueError(f"Unknown strategy: {name}")
 
 
@@ -61,6 +68,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument("--period", type=int, default=14, help="RSI period")
     parser.add_argument("--oversold", type=float, default=30)
     parser.add_argument("--overbought", type=float, default=70)
+    parser.add_argument("--kama-period", type=int, default=10, help="KAMA efficiency-ratio period")
+    parser.add_argument("--kama-fast", type=int, default=2, help="KAMA fast EMA period bound")
+    parser.add_argument("--kama-slow", type=int, default=30, help="KAMA slow EMA period bound")
     parser.add_argument("--no-cache", action="store_true", help="bypass the local data cache")
     return parser.parse_args(argv)
 
@@ -108,10 +118,14 @@ def run_guided_prompts() -> dict:
     if strategy_key == "sma":
         params["fast"] = questionary.text("Fast SMA period:", default="20").ask()
         params["slow"] = questionary.text("Slow SMA period:", default="50").ask()
-    else:
+    elif strategy_key == "rsi":
         params["period"] = questionary.text("RSI period:", default="14").ask()
         params["oversold"] = questionary.text("Oversold threshold (enter long below this):", default="30").ask()
         params["overbought"] = questionary.text("Overbought threshold (exit above this):", default="70").ask()
+    else:
+        params["kama_period"] = questionary.text("KAMA period:", default="10").ask()
+        params["kama_fast"] = questionary.text("KAMA fast bound:", default="2").ask()
+        params["kama_slow"] = questionary.text("KAMA slow bound:", default="30").ask()
 
     capital = questionary.text("Starting capital ($):", default="100000").ask()
     size = questionary.text("Fixed $ per trade:", default="10000").ask()
@@ -149,6 +163,9 @@ def main(argv: list[str] | None = None) -> int:
             "period": args.period,
             "oversold": args.oversold,
             "overbought": args.overbought,
+            "kama_period": args.kama_period,
+            "kama_fast": args.kama_fast,
+            "kama_slow": args.kama_slow,
         }
         use_cache = not args.no_cache
     else:
