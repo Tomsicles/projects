@@ -1,5 +1,6 @@
 import pandas as pd
 
+from backtester.strategies.kama_momentum import KamaMomentumStrategy
 from backtester.strategies.rsi_threshold import RsiThresholdStrategy
 from backtester.strategies.sma_crossover import SmaCrossoverStrategy
 
@@ -55,3 +56,42 @@ def test_rsi_threshold_rejects_bad_thresholds():
         assert False, "expected ValueError"
     except ValueError:
         pass
+
+
+def test_kama_momentum_rejects_period_lt_1():
+    try:
+        KamaMomentumStrategy(period=0)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_kama_momentum_rejects_fast_ge_slow():
+    try:
+        KamaMomentumStrategy(fast=30, slow=2)
+        assert False, "expected ValueError"
+    except ValueError:
+        pass
+
+
+def test_kama_momentum_flat_before_enough_history():
+    df = _df([10, 11, 12])  # fewer bars than period=5
+    strat = KamaMomentumStrategy(period=5, fast=2, slow=4)
+    signals = strat.generate_signals(df)
+    assert (signals == 0).all()
+
+
+def test_kama_momentum_goes_long_on_steady_uptrend():
+    closes = list(range(10, 40))  # 30 bars, strictly rising by 1 each bar
+    strat = KamaMomentumStrategy(period=5, fast=2, slow=10)
+    signals = strat.generate_signals(_df(closes))
+    assert signals.iloc[-1] == 1
+
+
+def test_kama_momentum_goes_flat_after_sustained_reversal():
+    # Rising for 13 bars, then a sustained 15-bar decline.
+    closes = [10] * 3 + list(range(11, 21)) + list(range(19, 4, -1))
+    strat = KamaMomentumStrategy(period=5, fast=2, slow=10)
+    signals = strat.generate_signals(_df(closes))
+    assert signals.max() == 1  # went long at some point during the rise
+    assert signals.iloc[-1] == 0  # flat again after the sustained decline
