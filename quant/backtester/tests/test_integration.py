@@ -9,6 +9,7 @@ import pytest
 from backtester.engine.simulator import run_backtest
 from backtester.reporting.metrics import compute_metrics
 from backtester.reporting.report import save_equity_curve, save_trades_csv
+from backtester.strategies.kama_momentum import KamaMomentumStrategy
 from backtester.strategies.sma_crossover import SmaCrossoverStrategy
 
 
@@ -44,3 +45,19 @@ def test_end_to_end_pipeline_produces_expected_report_shape(tmp_path: Path):
     assert png_path.exists()
     assert csv_path.exists()
     assert csv_path.read_text().splitlines()[0].startswith("ticker,")
+
+
+def test_end_to_end_pipeline_with_kama_strategy(tmp_path: Path):
+    bars = _fake_bars({"FAKE_UP.SI": [10 + i * 0.5 for i in range(40)]})
+
+    strategy = KamaMomentumStrategy(period=5, fast=2, slow=10)
+    result = run_backtest(bars, strategy, starting_cash=100_000, size_per_trade=10_000)
+    metrics = compute_metrics(result)
+
+    assert result.skipped_tickers == []
+    assert metrics.num_trades >= 1
+
+    png_path = save_equity_curve(result, tmp_path)
+    csv_path = save_trades_csv(result, tmp_path)
+    assert png_path.exists()
+    assert csv_path.exists()

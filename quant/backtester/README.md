@@ -36,6 +36,8 @@ python -m backtester.run_backtest --tickers D05.SI,O39.SI --strategy sma \
 `--strategy rsi` uses `--period`, `--oversold`, `--overbought` instead of
 `--fast`/`--slow`.
 
+`--strategy kama` uses `--kama-period`, `--kama-fast`, `--kama-slow` instead.
+
 Either way, output goes to:
 
 - Console: summary table (return, Sharpe, max drawdown, win rate, per-ticker P&L)
