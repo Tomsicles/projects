@@ -11,6 +11,10 @@ class GdsNotFoundError(Exception):
     """Raised when the Graph Data Science plugin is not installed."""
 
 
+class Neo4jAuthError(Exception):
+    """Raised when Neo4j authentication fails."""
+
+
 class Neo4jClient:
     def __init__(self, driver):
         self._driver = driver
@@ -23,6 +27,10 @@ class Neo4jClient:
     def check_gds(self) -> str:
         try:
             rows = self.run("RETURN gds.version() AS version")
+        except ServiceUnavailable as e:
+            raise Neo4jUnreachableError(
+                "Neo4j unreachable while checking for GDS plugin"
+            ) from e
         except Exception as e:  # noqa: BLE001 - surface as a clear domain error
             raise GdsNotFoundError(
                 "GDS plugin not found; ensure the graph-data-science plugin "
@@ -53,7 +61,7 @@ def connect(config) -> Neo4jClient:
         ) from e
     except AuthError as e:
         driver.close()
-        raise Neo4jUnreachableError(
-            f"Neo4j auth failed at {config.neo4j_uri}: {e}"
+        raise Neo4jAuthError(
+            f"Neo4j auth failed at {config.neo4j_uri}"
         ) from e
     return Neo4jClient(driver)

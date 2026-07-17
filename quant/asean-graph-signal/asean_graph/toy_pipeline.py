@@ -43,6 +43,8 @@ def run_fastrp(client, dim=64, seed=42) -> pd.DataFrame:
             "YIELD graphName RETURN graphName",
             name=TOY_GRAPH_NAME,
         )
+        # Note: randomSeed alone doesn't guarantee identical embeddings across runs;
+        # FastRP is only fully reproducible with concurrency: 1.
         rows = client.run(
             """
             CALL gds.fastRP.stream($name, {

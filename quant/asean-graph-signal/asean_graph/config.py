@@ -36,15 +36,33 @@ def load_config(path="config.yaml") -> Config:
 
     user = os.environ.get("NEO4J_USER")
     password = os.environ.get("NEO4J_PASSWORD")
-    if not user or not password:
+    missing_secrets = [
+        name
+        for name, value in (("NEO4J_USER", user), ("NEO4J_PASSWORD", password))
+        if not value
+    ]
+    if missing_secrets:
         raise ConfigError(
-            "NEO4J_USER and NEO4J_PASSWORD must be set in the environment"
+            f"{', '.join(missing_secrets)} must be set in the environment"
         )
+
+    try:
+        embedding_dim = int(data["embedding_dim"])
+    except (ValueError, TypeError) as e:
+        raise ConfigError(
+            f"Config key 'embedding_dim' must be an integer, got: {data['embedding_dim']!r}"
+        ) from e
+    try:
+        random_seed = int(data["random_seed"])
+    except (ValueError, TypeError) as e:
+        raise ConfigError(
+            f"Config key 'random_seed' must be an integer, got: {data['random_seed']!r}"
+        ) from e
 
     return Config(
         neo4j_uri=str(data["neo4j_uri"]),
         neo4j_user=user,
         neo4j_password=password,
-        embedding_dim=int(data["embedding_dim"]),
-        random_seed=int(data["random_seed"]),
+        embedding_dim=embedding_dim,
+        random_seed=random_seed,
     )
