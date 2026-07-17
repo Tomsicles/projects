@@ -1,0 +1,5 @@
+# Non-secret parameters. Secrets (NEO4J_USER/NEO4J_PASSWORD) come from the
+# environment / .env — never put them here.
+neo4j_uri: bolt://localhost:7687
+embedding_dim: 64
+random_seed: 42
